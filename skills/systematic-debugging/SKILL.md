@@ -1,296 +1,305 @@
 ---
 name: systematic-debugging
-description: Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes
+description: 在提出修复方案之前，当遇到任何 bug、测试失败或意外行为时使用
 ---
 
-# Systematic Debugging
+# 系统化调试
 
-## Overview
+## 概述
 
-Random fixes waste time and create new bugs. Quick patches mask underlying issues.
+随意的修复不仅浪费时间，还会引入新的 bug。快速补丁往往掩盖了潜在的问题。
 
-**Core principle:** ALWAYS find root cause before attempting fixes. Symptom fixes are failure.
+**核心原则：** 在尝试修复之前，务必找到根本原因。仅针对症状的修复即为失败。
 
-**Violating the letter of this process is violating the spirit of debugging.**
+**违反此流程的字面规定，即违背了调试的精神实质。**
 
-## The Iron Law
+## 铁律
 
 ```
-NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
+未经根本原因调查，严禁修复
 ```
 
-If you haven't completed Phase 1, you cannot propose fixes.
+如果你尚未完成第一阶段，则不得提出任何修复方案。
 
-## When to Use
+## 何时使用
 
-Use for ANY technical issue:
-- Test failures
-- Bugs in production
-- Unexpected behavior
-- Performance problems
-- Build failures
-- Integration issues
+适用于**任何**技术问题：
 
-**Use this ESPECIALLY when:**
-- Under time pressure (emergencies make guessing tempting)
-- "Just one quick fix" seems obvious
-- You've already tried multiple fixes
-- Previous fix didn't work
-- You don't fully understand the issue
+- 测试失败
+- 生产环境中的 bug
+- 意外行为
+- 性能问题
+- 构建失败
+- 集成问题
 
-**Don't skip when:**
-- Issue seems simple (simple bugs have root causes too)
-- You're in a hurry (rushing guarantees rework)
-- Manager wants it fixed NOW (systematic is faster than thrashing)
+**尤其在以下情况下使用：**
 
-## The Four Phases
+- 时间紧迫（紧急情况容易让人倾向于猜测）
+- “只需一个快速修复”看起来显而易见
+- 你已经尝试过多次修复
+- 之前的修复未生效
+- 你并未完全理解该问题
 
-You MUST complete each phase before proceeding to the next.
+**以下情况切勿跳过：**
 
-### Phase 1: Root Cause Investigation
+- 问题看似简单（简单的 bug 也有根本原因）
+- 你赶时间（匆忙必然导致返工）
+- 经理要求立即修复（系统化方法比盲目试错更快）
 
-**BEFORE attempting ANY fix:**
+## 四个阶段
 
-1. **Read Error Messages Carefully**
-   - Don't skip past errors or warnings
-   - They often contain the exact solution
-   - Read stack traces completely
-   - Note line numbers, file paths, error codes
+在进入下一阶段之前，你**必须**完成当前阶段。
 
-2. **Reproduce Consistently**
-   - Can you trigger it reliably?
-   - What are the exact steps?
-   - Does it happen every time?
-   - If not reproducible → gather more data, don't guess
+### 第一阶段：根本原因调查
 
-3. **Check Recent Changes**
-   - What changed that could cause this?
-   - Git diff, recent commits
-   - New dependencies, config changes
-   - Environmental differences
+**在尝试任何修复之前：**
 
-4. **Gather Evidence in Multi-Component Systems**
+1. **仔细阅读错误信息**
+   - 不要略过错误或警告
+   - 它们通常包含确切的解决方案
+   - 完整阅读堆栈跟踪（stack traces）
+   - 记录行号、文件路径、错误代码
 
-   **WHEN system has multiple components (CI → build → signing, API → service → database):**
+2. **稳定复现问题**
+   - 你能可靠地触发它吗？
+   - 确切步骤是什么？
+   - 它是否每次都会发生？
+   - 如果无法复现 → 收集更多数据，不要猜测
 
-   **BEFORE proposing fixes, add diagnostic instrumentation:**
+3. **检查近期变更**
+   - 哪些变更可能导致了这个问题？
+   - Git diff、最近的提交
+   - 新依赖项、配置变更
+   - 环境差异
+
+4. **在多组件系统中收集证据**
+
+   **当系统包含多个组件时（例如 CI → 构建 → 签名，API → 服务 → 数据库）：**
+
+   **在提出修复方案之前，添加诊断 instrumentation（检测代码/日志）：**
+
    ```
-   For EACH component boundary:
-     - Log what data enters component
-     - Log what data exits component
-     - Verify environment/config propagation
-     - Check state at each layer
+   对于每个组件边界：
+     - 记录进入组件的数据
+     - 记录离开组件的数据
+     - 验证环境/配置的传递
+     - 检查每一层的状态
 
-   Run once to gather evidence showing WHERE it breaks
-   THEN analyze evidence to identify failing component
-   THEN investigate that specific component
+   运行一次以收集证据，显示问题发生在何处
+   然后分析证据以识别失败的组件
+   随后调查该特定组件
    ```
 
-   **Example (multi-layer system):**
+   **示例（多层系统）：**
+
    ```bash
-   # Layer 1: Workflow
-   echo "=== Secrets available in workflow: ==="
+   # 第 1 层：工作流
+   echo "=== 工作流中可用的 Secrets: ==="
    echo "IDENTITY: ${IDENTITY:+SET}${IDENTITY:-UNSET}"
 
-   # Layer 2: Build script
-   echo "=== Env vars in build script: ==="
-   env | grep IDENTITY || echo "IDENTITY not in environment"
+   # 第 2 层：构建脚本
+   echo "=== 构建脚本中的环境变量: ==="
+   env | grep IDENTITY || echo "环境中不存在 IDENTITY"
 
-   # Layer 3: Signing script
-   echo "=== Keychain state: ==="
+   # 第 3 层：签名脚本
+   echo "=== 钥匙串状态: ==="
    security list-keychains
    security find-identity -v
 
-   # Layer 4: Actual signing
+   # 第 4 层：实际签名
    codesign --sign "$IDENTITY" --verbose=4 "$APP"
    ```
 
-   **This reveals:** Which layer fails (secrets → workflow ✓, workflow → build ✗)
+   **这将揭示：** 哪一层失败（secrets → 工作流 ✓, 工作流 → 构建 ✗）
 
-5. **Trace Data Flow**
+5. **追踪数据流**
 
-   **WHEN error is deep in call stack:**
+   **当错误出现在调用栈深处时：**
 
-   See `root-cause-tracing.md` in this directory for the complete backward tracing technique.
+   请参阅本目录中的 `root-cause-tracing.md` 以获取完整的向后追踪技术。
 
-   **Quick version:**
-   - Where does bad value originate?
-   - What called this with bad value?
-   - Keep tracing up until you find the source
-   - Fix at source, not at symptom
+   **简要版本：**
+   - 错误值起源于何处？
+   - 是谁用错误值调用了这个函数？
+   - 持续向上追踪，直到找到源头
+   - 在源头修复，而非在症状处修复
 
-### Phase 2: Pattern Analysis
+### 第二阶段：模式分析
 
-**Find the pattern before fixing:**
+**在修复之前找到模式：**
 
-1. **Find Working Examples**
-   - Locate similar working code in same codebase
-   - What works that's similar to what's broken?
+1. **寻找正常工作的示例**
+   - 在同一代码库中定位类似的正常工作代码
+   - 哪些与出错部分相似且能正常工作？
 
-2. **Compare Against References**
-   - If implementing pattern, read reference implementation COMPLETELY
-   - Don't skim - read every line
-   - Understand the pattern fully before applying
+2. **与参考实现对比**
+   - 如果正在实现某种模式，请**完整**阅读参考实现
+   - 不要略读——逐行阅读
+   - 在应用之前充分理解该模式
 
-3. **Identify Differences**
-   - What's different between working and broken?
-   - List every difference, however small
-   - Don't assume "that can't matter"
+3. **识别差异**
+   - 正常工作部分与出错部分有何不同？
+   - 列出每一个差异，无论多么微小
+   - 不要假设“那应该不重要”
 
-4. **Understand Dependencies**
-   - What other components does this need?
-   - What settings, config, environment?
-   - What assumptions does it make?
+4. **理解依赖关系**
+   - 这需要其他哪些组件？
+   - 需要哪些设置、配置、环境？
+   - 它做了哪些假设？
 
-### Phase 3: Hypothesis and Testing
+### 第三阶段：假设与测试
 
-**Scientific method:**
+**科学方法：**
 
-1. **Form Single Hypothesis**
-   - State clearly: "I think X is the root cause because Y"
-   - Write it down
-   - Be specific, not vague
+1. **形成单一假设**
+   - 清晰陈述：“我认为 X 是根本原因，因为 Y”
+   - 写下来
+   - 具体明确，避免模糊
 
-2. **Test Minimally**
-   - Make the SMALLEST possible change to test hypothesis
-   - One variable at a time
-   - Don't fix multiple things at once
+2. **最小化测试**
+   - 做出**最小**可能的更改来测试假设
+   - 一次只改变一个变量
+   - 不要同时修复多个问题
 
-3. **Verify Before Continuing**
-   - Did it work? Yes → Phase 4
-   - Didn't work? Form NEW hypothesis
-   - DON'T add more fixes on top
+3. **在继续之前验证**
+   - 生效了吗？是 → 进入第四阶段
+   - 没生效？形成**新**假设
+   - **不要**在此基础上叠加更多修复
 
-4. **When You Don't Know**
-   - Say "I don't understand X"
-   - Don't pretend to know
-   - Ask for help
-   - Research more
+4. **当你不知道时**
+   - 说“我不理解 X”
+   - 不要假装知道
+   - 寻求帮助
+   - 进行更多研究
 
-### Phase 4: Implementation
+### 第四阶段：实施
 
-**Fix the root cause, not the symptom:**
+**修复根本原因，而非症状：**
 
-1. **Create Failing Test Case**
-   - Simplest possible reproduction
-   - Automated test if possible
-   - One-off test script if no framework
-   - MUST have before fixing
-   - Use the `superpowers:test-driven-development` skill for writing proper failing tests
+1. **创建失败的测试用例**
+   - 尽可能最简单的复现步骤
+   - 如果可能，编写自动化测试
+   - 如果没有框架，编写一次性测试脚本
+   - **必须**在修复前拥有此测试
+   - 使用 `superpowers:test-driven-development` 技能来编写正确的失败测试
 
-2. **Implement Single Fix**
-   - Address the root cause identified
-   - ONE change at a time
-   - No "while I'm here" improvements
-   - No bundled refactoring
+2. **实施单一修复**
+   - 针对已识别的根本原因
+   - 一次只做**一个**更改
+   - 不进行“既然都在这儿了”式的改进
+   - 不进行捆绑式重构
 
-3. **Verify Fix**
-   - Test passes now?
-   - No other tests broken?
-   - Issue actually resolved?
+3. **验证修复**
+   - 测试现在通过了吗？
+   - 没有其他测试被破坏吧？
+   - 问题真的解决了吗？
 
-4. **If Fix Doesn't Work**
-   - STOP
-   - Count: How many fixes have you tried?
-   - If < 3: Return to Phase 1, re-analyze with new information
-   - **If ≥ 3: STOP and question the architecture (step 5 below)**
-   - DON'T attempt Fix #4 without architectural discussion
+4. **如果修复无效**
+   - **停止**
+   - 计数：你尝试了多少次修复？
+   - 如果 < 3 次：返回第一阶段，利用新信息重新分析
+   - **如果 ≥ 3 次：停止并质疑架构（见下文步骤 5）**
+   - 在进行架构讨论之前，**不要**尝试第 4 次修复
 
-5. **If 3+ Fixes Failed: Question Architecture**
+5. **如果 3 次以上修复失败：质疑架构**
 
-   **Pattern indicating architectural problem:**
-   - Each fix reveals new shared state/coupling/problem in different place
-   - Fixes require "massive refactoring" to implement
-   - Each fix creates new symptoms elsewhere
+   **表明存在架构问题的模式：**
+   - 每次修复都在不同地方揭示了新的共享状态/耦合/问题
+   - 修复需要“大规模重构”才能实施
+   - 每次修复都在其他地方产生了新的症状
 
-   **STOP and question fundamentals:**
-   - Is this pattern fundamentally sound?
-   - Are we "sticking with it through sheer inertia"?
-   - Should we refactor architecture vs. continue fixing symptoms?
+   **停止并质疑基础：**
+   - 这种模式在根本上健全吗？
+   - 我们是否只是“凭惯性死守”？
+   - 我们应该重构架构还是继续修复症状？
 
-   **Discuss with your human partner before attempting more fixes**
+   **在尝试更多修复之前，与你的人类伙伴讨论**
 
-   This is NOT a failed hypothesis - this is a wrong architecture.
+   这**不是**假设失败——这是架构错误。
 
-## Red Flags - STOP and Follow Process
+## 危险信号 - 停止并遵循流程
 
-If you catch yourself thinking:
-- "Quick fix for now, investigate later"
-- "Just try changing X and see if it works"
-- "Add multiple changes, run tests"
-- "Skip the test, I'll manually verify"
-- "It's probably X, let me fix that"
-- "I don't fully understand but this might work"
-- "Pattern says X but I'll adapt it differently"
-- "Here are the main problems: [lists fixes without investigation]"
-- Proposing solutions before tracing data flow
-- **"One more fix attempt" (when already tried 2+)**
-- **Each fix reveals new problem in different place**
+如果你发现自己有以下想法：
 
-**ALL of these mean: STOP. Return to Phase 1.**
+- “先快速修复一下，稍后再调查”
+- “试着改一下 X 看看是否有效”
+- “添加多个更改，然后运行测试”
+- “跳过测试，我会手动验证”
+- “可能是 X，让我修好它”
+- “我不完全理解，但这可能有效”
+- “模式说是 X，但我会以不同方式适配”
+- “主要问题如下：[列出修复方案而未进行调查]”
+- 在追踪数据流之前就提出解决方案
+- **“再试一次修复”**（当已经尝试过 2 次以上时）
+- **每次修复都在不同地方揭示新问题**
 
-**If 3+ fixes failed:** Question the architecture (see Phase 4.5)
+**以上所有情况均意味着：停止。返回第一阶段。**
 
-## your human partner's Signals You're Doing It Wrong
+**如果 3 次以上修复失败：** 质疑架构（参见第四阶段第 5 步）
 
-**Watch for these redirections:**
-- "Is that not happening?" - You assumed without verifying
-- "Will it show us...?" - You should have added evidence gathering
-- "Stop guessing" - You're proposing fixes without understanding
-- "Ultrathink this" - Question fundamentals, not just symptoms
-- "We're stuck?" (frustrated) - Your approach isn't working
+## 你的人类伙伴发出的“你做错了”信号
 
-**When you see these:** STOP. Return to Phase 1.
+**留意这些纠正指示：**
 
-## Common Rationalizations
+- “那不是没发生吗？” - 你在未验证的情况下做了假设
+- “它会向我们展示……吗？” - 你应该添加证据收集步骤
+- “停止猜测” - 你在不理解的情况下提出修复方案
+- “深入思考这个（Ultrathink this）” - 质疑基础，而不仅仅是症状
+- “我们卡住了？”（沮丧语气） - 你的方法行不通
 
-| Excuse | Reality |
-|--------|---------|
-| "Issue is simple, don't need process" | Simple issues have root causes too. Process is fast for simple bugs. |
-| "Emergency, no time for process" | Systematic debugging is FASTER than guess-and-check thrashing. |
-| "Just try this first, then investigate" | First fix sets the pattern. Do it right from the start. |
-| "I'll write test after confirming fix works" | Untested fixes don't stick. Test first proves it. |
-| "Multiple fixes at once saves time" | Can't isolate what worked. Causes new bugs. |
-| "Reference too long, I'll adapt the pattern" | Partial understanding guarantees bugs. Read it completely. |
-| "I see the problem, let me fix it" | Seeing symptoms ≠ understanding root cause. |
-| "One more fix attempt" (after 2+ failures) | 3+ failures = architectural problem. Question pattern, don't fix again. |
+**当你看到这些时：** 停止。返回第一阶段。
 
-## Quick Reference
+## 常见的自我合理化借口
 
-| Phase | Key Activities | Success Criteria |
-|-------|---------------|------------------|
-| **1. Root Cause** | Read errors, reproduce, check changes, gather evidence | Understand WHAT and WHY |
-| **2. Pattern** | Find working examples, compare | Identify differences |
-| **3. Hypothesis** | Form theory, test minimally | Confirmed or new hypothesis |
-| **4. Implementation** | Create test, fix, verify | Bug resolved, tests pass |
+| 借口                                | 现实                                              |
+| ----------------------------------- | ------------------------------------------------- |
+| “问题很简单，不需要流程”            | 简单问题也有根本原因。对于简单 bug，流程很快。    |
+| “紧急情况，没时间走流程”            | 系统化调试比盲目试错**更快**。                    |
+| “先试试这个，然后再调查”            | 第一次修复奠定了模式。从一开始就要做对。          |
+| “确认修复有效后我再写测试”          | 未经测试的修复站不住脚。先测试才能证明有效性。    |
+| “一次性修复多个问题节省时间”        | 无法隔离哪个起了作用。会导致新 bug。              |
+| “参考太长，我会适配模式”            | 部分理解必然导致 bug。完整阅读它。                |
+| “我看到问题了，让我修好它”          | 看到症状 ≠ 理解根本原因。                         |
+| “再试一次修复”（在 2 次以上失败后） | 3 次以上失败 = 架构问题。质疑模式，不要再次修复。 |
 
-## When Process Reveals "No Root Cause"
+## 快速参考
 
-If systematic investigation reveals issue is truly environmental, timing-dependent, or external:
+| 阶段            | 关键活动                           | 成功标准                 |
+| --------------- | ---------------------------------- | ------------------------ |
+| **1. 根本原因** | 阅读错误、复现、检查变更、收集证据 | 理解**什么**和**为什么** |
+| **2. 模式**     | 寻找正常示例、对比                 | 识别差异                 |
+| **3. 假设**     | 形成理论、最小化测试               | 确认或形成新假设         |
+| **4. 实施**     | 创建测试、修复、验证               | Bug 解决，测试通过       |
 
-1. You've completed the process
-2. Document what you investigated
-3. Implement appropriate handling (retry, timeout, error message)
-4. Add monitoring/logging for future investigation
+## 当流程揭示“无根本原因”时
 
-**But:** 95% of "no root cause" cases are incomplete investigation.
+如果系统化调查揭示问题确实是环境相关的、依赖时序的或外部的：
 
-## Supporting Techniques
+1. 你已完成该流程
+2. 记录你调查的内容
+3. 实施适当的处理机制（重试、超时、错误消息）
+4. 添加监控/日志以便未来调查
 
-These techniques are part of systematic debugging and available in this directory:
+**但是：** 95% 的“无根本原因”案例都是调查不完整所致。
 
-- **`root-cause-tracing.md`** - Trace bugs backward through call stack to find original trigger
-- **`defense-in-depth.md`** - Add validation at multiple layers after finding root cause
-- **`condition-based-waiting.md`** - Replace arbitrary timeouts with condition polling
+## 支持性技术
 
-**Related skills:**
-- **superpowers:test-driven-development** - For creating failing test case (Phase 4, Step 1)
-- **superpowers:verification-before-completion** - Verify fix worked before claiming success
+这些技术是系统化调试的一部分，可在本目录中找到：
 
-## Real-World Impact
+- **`root-cause-tracing.md`** - 沿调用栈向后追踪 bug 以找到原始触发点
+- **`defense-in-depth.md`** - 在找到根本原因后，在多层添加验证
+- **`condition-based-waiting.md`** - 用条件轮询替换任意超时
 
-From debugging sessions:
-- Systematic approach: 15-30 minutes to fix
-- Random fixes approach: 2-3 hours of thrashing
-- First-time fix rate: 95% vs 40%
-- New bugs introduced: Near zero vs common
+**相关技能：**
+
+- **superpowers:test-driven-development** - 用于创建失败的测试用例（第四阶段，步骤 1）
+- **superpowers:verification-before-completion** - 在宣称成功之前验证修复是否生效
+
+## 现实世界的影响
+
+来自调试会话的数据：
+
+- 系统化方法：15-30 分钟修复
+- 随机修复方法：2-3 小时的盲目试错
+- 首次修复成功率：95% vs 40%
+- 引入的新 bug：接近零 vs 常见
